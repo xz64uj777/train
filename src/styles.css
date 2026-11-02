@@ -1,0 +1,216 @@
+@import "tailwindcss";
+
+@theme {
+  --color-ink: #101311;
+  --color-cab: #171c19;
+  --color-panel: #222824;
+  --color-line: #343c37;
+  --color-cream: #e6e0d2;
+  --color-cream-dim: #b7b1a3;
+  --color-amber: #e0a04a;
+  --color-signal: #d35a42;
+  --color-clear: #7ea37a;
+  --color-steel: #8e9892;
+  --font-sans: "Barlow Condensed", "Arial Narrow", sans-serif;
+  --font-display: "Newsreader", Georgia, serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, monospace;
+  --radius-md: 0.375rem;
+}
+
+@layer base {
+  html {
+    color-scheme: dark;
+  }
+  body {
+    margin: 0;
+    background: var(--color-ink);
+    color: var(--color-cream);
+    font-family: var(--font-sans);
+    letter-spacing: 0.01em;
+    overscroll-behavior: none;
+  }
+  button:not(:disabled),
+  [role="button"]:not(:disabled) {
+    cursor: pointer;
+  }
+  button:disabled {
+    cursor: not-allowed;
+  }
+}
+
+@layer components {
+  .num {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+  }
+  .vignette {
+    pointer-events: none;
+    box-shadow: inset 0 0 8rem rgb(16 19 17 / 0.45);
+  }
+  .run-hud {
+    padding: max(0.75rem, env(safe-area-inset-top, 0px)) 0.75rem 0;
+  }
+  .route-map {
+    position: absolute;
+    z-index: 15;
+    left: 0.75rem;
+    bottom: calc(12.75rem + env(safe-area-inset-bottom, 0px));
+    width: min(17rem, 54vw);
+    pointer-events: none;
+  }
+  .route-map-static {
+    width: 100%;
+  }
+  .cab-stand {
+    position: absolute;
+    inset-inline: 0;
+    bottom: 0;
+    z-index: 20;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    padding: 0.5rem 0.75rem calc(0.75rem + env(safe-area-inset-bottom, 0px));
+    pointer-events: none;
+  }
+  .cab-stand button {
+    pointer-events: auto;
+    touch-action: none;
+  }
+  .cab-grid {
+    display: flex;
+    align-items: stretch;
+    justify-content: space-between;
+    gap: 0.75rem;
+    pointer-events: none;
+  }
+  .cab-left {
+    display: flex;
+    align-items: stretch;
+    gap: 0.5rem;
+    pointer-events: none;
+  }
+  .cab-left > *,
+  .cab-power > * {
+    pointer-events: auto;
+  }
+  .cab-look,
+  .cab-power {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+  .cab-look {
+    width: 4.5rem;
+  }
+  .cab-look > button {
+    flex: 1;
+  }
+  .cab-horn {
+    width: 4.25rem;
+  }
+  .cab-power {
+    display: flex;
+    flex: 1 1 0;
+    flex-direction: column;
+    gap: 0.5rem;
+    min-width: 0;
+    max-width: 16rem;
+  }
+  .cab-pair {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.5rem;
+  }
+  .cab-notch {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    min-height: 2.5rem;
+    padding: 0 0.65rem;
+    border: 1px solid var(--color-line);
+    background: var(--color-ink);
+    color: var(--color-cream);
+  }
+  .cab-key {
+    display: flex;
+    min-height: 3.5rem;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.1rem;
+    border-radius: var(--radius-md);
+    padding: 0.3rem 0.25rem;
+    user-select: none;
+    -webkit-user-select: none;
+    line-height: 1;
+  }
+  .cab-key[data-down="1"] {
+    background: var(--color-cream);
+    color: var(--color-ink);
+    transform: translateY(2px);
+    box-shadow: inset 0 3px 0 rgb(0 0 0 / 0.28);
+  }
+  .cab-key-sub {
+    font-size: 0.7rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    opacity: 0.8;
+  }
+}
+
+@media (max-width: 359px) {
+  .cab-look {
+    width: 4rem;
+  }
+  .cab-horn {
+    width: 3.75rem;
+  }
+  .cab-key-sub {
+    display: none;
+  }
+}
+
+@media (max-height: 520px) {
+  .run-radio-body {
+    display: -webkit-box;
+    -webkit-line-clamp: 1;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  .cab-grid {
+    display: grid;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    gap: 0.4rem;
+  }
+  .cab-left,
+  .cab-look,
+  .cab-power,
+  .cab-pair {
+    display: contents;
+  }
+  .cab-notch {
+    display: none;
+  }
+  .route-map {
+    top: 4.25rem;
+    bottom: auto;
+    width: 8.5rem;
+  }
+  .cab-horn,
+  .cab-look > button,
+  .cab-pair > button {
+    width: auto;
+    min-height: 3rem;
+  }
+  .cab-key-sub {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .motion-safe {
+    animation: none !important;
+    transition: none !important;
+  }
+}
