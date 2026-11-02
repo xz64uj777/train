@@ -4,8 +4,6 @@ import {
   Award,
   Camera,
   ChevronDown,
-  ChevronLeft,
-  ChevronRight,
   ChevronUp,
   Fuel,
   Lock,
@@ -403,10 +401,6 @@ function CabStand({
       </div>
       <div className="cab-grid">
         <div className="cab-left">
-          <div className="cab-look">
-            <Hold label="LEFT" sub="look" name="left" gameRef={gameRef} icon={<ChevronLeft className="size-5" />} />
-            <Hold label="RIGHT" sub="look" name="right" gameRef={gameRef} icon={<ChevronRight className="size-5" />} />
-          </div>
           <Hold label="HORN" name="horn" gameRef={gameRef} className="cab-horn" />
         </div>
         <div className="cab-power">
@@ -592,7 +586,7 @@ export function ValleyApp() {
                 <Stat k="Par" v={`${Math.round(job.par / 60)} min`} />
               </dl>
               <p className="mt-3 text-xs leading-relaxed tracking-wide text-steel uppercase">
-                Phone: drag the view to look around, pinch to zoom. Right thumb is power and air, left thumb looks out and blows the horn.
+                Phone: drag the view to look around, pinch to zoom. Right thumb is power and air, left thumb blows the horn.
                 Keyboard: W raises the throttle 1–8. S eases it, and past idle S is the dynamic brake. Space is the air brake.
               </p>
               {job.qual && !career.quals[job.qual] ? (

@@ -16,7 +16,7 @@ import {
 import { BRIDGE, MARK, MILE, ROUTE_LEN, SAMPLES, SIGNALS, sampleAt, type Sample } from "./route";
 
 export type CameraMode = "chase" | "cab" | "hood" | "railfan";
-export type HoldName = "notchUp" | "notchDown" | "brake" | "release" | "left" | "right" | "horn";
+export type HoldName = "notchUp" | "notchDown" | "brake" | "release" | "horn";
 export type Aspect = "clear" | "approach" | "stop" | "none";
 
 export type Hud = {
@@ -1319,6 +1319,31 @@ export function mountGame(canvas: HTMLCanvasElement, hooks: GameHooks): GameHand
     spot.target = target;
     group.userData.spot = spot;
     group.userData.stack = new THREE.Vector3(0, 3.3, kind === "switcher" ? 0.2 : -loco.length * 0.22);
+    const eye = new THREE.Vector3();
+    const gaze = new THREE.Vector3();
+    const hoodEye = new THREE.Vector3();
+    const hoodGaze = new THREE.Vector3();
+    if (kind === "switcher") {
+      eye.set(0.25, 3.15, 1.85);
+      gaze.set(0, 3.6, 75);
+      hoodEye.set(0, 3.8, 6.4);
+      hoodGaze.set(0, 2.9, 70);
+    } else if (kind === "passenger") {
+      eye.set(0.3, 3.4, L / 2 - 0.35);
+      gaze.set(0, 3.8, L / 2 + 75);
+      hoodEye.set(0, 4.45, L / 2 + 0.35);
+      hoodGaze.set(0, 3.2, L / 2 + 60);
+    } else {
+      const z = L * 0.18 + 1.7;
+      eye.set(0.28, 3.6, z);
+      gaze.set(0, 4.3, z + 80);
+      hoodEye.set(0, 4.4, L * 0.42);
+      hoodGaze.set(0, 3.2, L * 0.42 + 75);
+    }
+    group.userData.cabEye = eye;
+    group.userData.cabLook = gaze;
+    group.userData.hoodEye = hoodEye;
+    group.userData.hoodLook = hoodGaze;
     group.traverse((o) => {
       const mesh = o as THREE.Mesh;
       if (mesh.isMesh) {
@@ -1428,8 +1453,6 @@ export function mountGame(canvas: HTMLCanvasElement, hooks: GameHooks): GameHand
     notchDown: false,
     brake: false,
     release: false,
-    left: false,
-    right: false,
     horn: false,
   };
 
@@ -1489,8 +1512,6 @@ export function mountGame(canvas: HTMLCanvasElement, hooks: GameHooks): GameHand
       notchDown: held.notchDown || down("KeyS") || down("ArrowDown"),
       brake: held.brake || down("Space") || down("KeyQ"),
       release: held.release || down("KeyE"),
-      left: held.left || down("KeyA") || down("ArrowLeft"),
-      right: held.right || down("KeyD") || down("ArrowRight"),
       horn: held.horn || down("KeyH"),
     };
   }
@@ -1500,13 +1521,12 @@ export function mountGame(canvas: HTMLCanvasElement, hooks: GameHooks): GameHand
     return s.limit;
   }
 
-  function pose(group: THREE.Group, d: number, look: number) {
+  function pose(group: THREE.Group, d: number) {
     const a = sampleAt(d);
     const b = sampleAt(Math.min(ROUTE_LEN - 1, d + 8));
-    const aimX = b.x - a.rx * Math.sin(look) * 14;
-    const aimZ = b.z - a.rz * Math.sin(look) * 14;
     group.position.set(a.x, a.y, a.z);
-    group.lookAt(aimX, b.y, aimZ);
+    group.lookAt(b.x, b.y, b.z);
+    group.rotateY(Math.PI);
     return a;
   }
 
@@ -1911,18 +1931,12 @@ export function mountGame(canvas: HTMLCanvasElement, hooks: GameHooks): GameHand
   }
 
   function frameCamera(dt: number) {
-    const h = input();
-    let steer = (h.left ? 1 : 0) - (h.right ? 1 : 0);
-    if (forcedSteer !== null && !qaKeys) steer = Math.max(-1, Math.min(1, forcedSteer));
-    const target = steer * 0.24;
-    sim.lookYaw += (target - sim.lookYaw) * Math.min(1, dt * 8);
-
     const lead = units[0];
     if (!lead) return;
-    pose(lead.group, sim.d, sim.lookYaw);
+    pose(lead.group, sim.d);
     for (let i = 1; i < units.length; i++) {
       const slack = Math.sin(sim.time * 1.6 + i) * Math.min(0.12, Math.abs(sim.speed) * 0.01);
-      pose(units[i].group, sim.d - units[i].offset - slack, 0);
+      pose(units[i].group, sim.d - units[i].offset - slack);
     }
     sim.wheelSpin += (sim.speed / 0.46) * dt;
     for (const u of units) for (const w of u.wheels) w.rotation.x = sim.wheelSpin;
@@ -1946,11 +1960,15 @@ export function mountGame(canvas: HTMLCanvasElement, hooks: GameHooks): GameHand
       desired.set(s.x + Math.sin(sim.menuAng) * 28, s.y + 8.2, s.z + Math.cos(sim.menuAng) * 24);
       look.set(s.x, s.y + 2.2, s.z + 14);
     } else if (sim.camera === "cab") {
-      desired = new THREE.Vector3(0.46, 3.35, -2.05).applyQuaternion(lead.group.quaternion).add(lead.group.position);
-      look = new THREE.Vector3(0.1, 3.05, -40).applyQuaternion(lead.group.quaternion).add(lead.group.position);
+      const eye = lead.group.userData.cabEye as THREE.Vector3;
+      const gaze = lead.group.userData.cabLook as THREE.Vector3;
+      desired = eye.clone().applyQuaternion(lead.group.quaternion).add(lead.group.position);
+      look = gaze.clone().applyQuaternion(lead.group.quaternion).add(lead.group.position);
     } else if (sim.camera === "hood") {
-      desired = new THREE.Vector3(0, 4.15, -8.2).applyQuaternion(lead.group.quaternion).add(lead.group.position);
-      look = new THREE.Vector3(0, 2.4, -50).applyQuaternion(lead.group.quaternion).add(lead.group.position);
+      const eye = lead.group.userData.hoodEye as THREE.Vector3;
+      const gaze = lead.group.userData.hoodLook as THREE.Vector3;
+      desired = eye.clone().applyQuaternion(lead.group.quaternion).add(lead.group.position);
+      look = gaze.clone().applyQuaternion(lead.group.quaternion).add(lead.group.position);
     } else if (sim.camera === "railfan") {
       const s = sampleAt(Math.min(ROUTE_LEN - 2, sim.d + 46));
       desired.set(s.x + s.rx * 16, s.y + 3.4, s.z + s.rz * 16);
@@ -1960,7 +1978,6 @@ export function mountGame(canvas: HTMLCanvasElement, hooks: GameHooks): GameHand
       const travel = new THREE.Vector3(aheadS.x - lead.group.position.x, 0, aheadS.z - lead.group.position.z);
       if (travel.lengthSq() < 1e-4) travel.set(0, 0, 1);
       travel.normalize();
-      travel.applyAxisAngle(new THREE.Vector3(0, 1, 0), sim.lookYaw);
       const shake = Math.min(0.12, Math.abs(sim.speed) * 0.004) * Math.sin(sim.d * 0.85);
       desired.copy(lead.group.position).addScaledVector(travel, -22).add(new THREE.Vector3(0, 6.6 + shake, 0));
       look.copy(lead.group.position).addScaledVector(travel, 70).add(new THREE.Vector3(0, 3.4, 0));
@@ -2167,7 +2184,7 @@ export function mountGame(canvas: HTMLCanvasElement, hooks: GameHooks): GameHand
   }
 
   window.__controlsTest = {
-    getYaw: () => sampleAt(sim.d).yaw + sim.lookYaw,
+    getYaw: () => sampleAt(sim.d).yaw,
     getSpeed: () => sim.speed,
     getOrbitYaw: () => orbitYaw,
     getZoom: () => camZoom,
