@@ -176,14 +176,17 @@ export const MARK = {
 export const BRIDGE = { d0: dAtZ(2060), d1: dAtZ(2520) };
 
 export const SIGNALS: SignalDef[] = [
-  { d: dAtZ(980), name: "Yard Limit", meet: false },
-  { d: dAtZ(1500), name: "Mill River", meet: false },
+  { d: dAtZ(260), name: "Briar", meet: false },
+  { d: dAtZ(700), name: "Yard Limit", meet: false },
+  { d: dAtZ(1200), name: "Mill Approach", meet: false },
+  { d: dAtZ(1600), name: "Mill River", meet: false },
   { d: MARK.ferrySignal, name: "East Ferry", meet: true },
-  { d: dAtZ(3400), name: "Block 34", meet: false },
-  { d: dAtZ(4100), name: "Summit Approach", meet: false },
-  { d: dAtZ(4700), name: "Summit", meet: false },
-  { d: dAtZ(5600), name: "Hale", meet: false },
-  { d: dAtZ(6600), name: "Tidewater Approach", meet: false },
+  { d: dAtZ(3000), name: "Block 30", meet: false },
+  { d: dAtZ(3800), name: "Grade", meet: false },
+  { d: dAtZ(4500), name: "Summit", meet: false },
+  { d: dAtZ(5300), name: "Hale Approach", meet: false },
+  { d: dAtZ(6000), name: "Hale", meet: false },
+  { d: dAtZ(6800), name: "Tidewater", meet: false },
 ];
 
 function lerp(a: Sample, b: Sample, u: number): Sample {

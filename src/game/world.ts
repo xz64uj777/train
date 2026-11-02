@@ -1059,7 +1059,7 @@ export function mountGame(canvas: HTMLCanvasElement, hooks: GameHooks): GameHand
   const sigLamps: {
     d: number;
     meet: boolean;
-    mats: THREE.MeshStandardMaterial[];
+    mats: THREE.MeshBasicMaterial[];
     hues: Aspect[];
     halos: THREE.Sprite[];
     light: THREE.PointLight;
@@ -1106,36 +1106,33 @@ export function mountGame(canvas: HTMLCanvasElement, hooks: GameHooks): GameHand
   for (const sig of SIGNALS) {
     const s = sampleAt(sig.d);
     const g = new THREE.Group();
-    const side = 5.2;
-    g.position.set(s.x + s.rx * side, s.y, s.z + s.rz * side);
-    const back = sampleAt(Math.max(0, sig.d - 40));
-    g.lookAt(back.x + back.rx * side, s.y, back.z + back.rz * side);
-    const mast = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.16, 6.4, 8), black);
-    mast.position.y = 3.2;
-    mast.castShadow = true;
-    g.add(mast);
-    const head = new THREE.Mesh(new THREE.BoxGeometry(0.85, 2.05, 0.55), black);
-    head.position.set(0, 5.35, -0.15);
+    g.position.set(s.x, s.y, s.z);
+    const back = sampleAt(Math.max(0, sig.d - 36));
+    g.lookAt(back.x, s.y, back.z);
+    const post = new THREE.CylinderGeometry(0.16, 0.22, 7.4, 8);
+    const left = new THREE.Mesh(post, black);
+    left.position.set(-3.8, 3.7, 0);
+    const right = new THREE.Mesh(post, black);
+    right.position.set(3.8, 3.7, 0);
+    const beam = new THREE.Mesh(new THREE.BoxGeometry(8.6, 0.38, 0.42), black);
+    beam.position.set(0, 7.35, 0);
+    g.add(left, right, beam);
+    const head = new THREE.Mesh(new THREE.BoxGeometry(1.25, 2.55, 0.5), black);
+    head.position.set(0, 5.85, -0.45);
     g.add(head);
-    const board = new THREE.Mesh(new THREE.PlaneGeometry(3.4, 0.85), signalBoard(sig.name));
-    board.position.set(0, 3.55, -0.2);
+    const board = new THREE.Mesh(new THREE.PlaneGeometry(4.2, 0.95), signalBoard(sig.name));
+    board.position.set(0, 4.05, -0.5);
     board.rotation.y = Math.PI;
     g.add(board);
     const hues: Aspect[] = ["clear", "approach", "stop"];
-    const colors = [0x9dbe8a, 0xe0a04a, 0xff5a42];
-    const mats: THREE.MeshStandardMaterial[] = [];
+    const colors = [0x3dff6a, 0xffc83a, 0xff3b30];
+    const mats: THREE.MeshBasicMaterial[] = [];
     const halos: THREE.Sprite[] = [];
-    hues.forEach((_, i) => {
-      const mat = new THREE.MeshStandardMaterial({
-        color: 0x1a1e1c,
-        emissive: colors[i],
-        emissiveIntensity: 0.15,
-        roughness: 0.3,
-      });
+    hues.forEach((hue, i) => {
+      const mat = new THREE.MeshBasicMaterial({ color: 0x1a1c1b, toneMapped: false });
       mats.push(mat);
-      lampEmissive.push(mat);
-      const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.26, 12, 10), mat);
-      bulb.position.set(0, 5.95 - i * 0.55, -0.42);
+      const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.48, 16, 12), mat);
+      bulb.position.set(0, 6.55 - i * 0.7, -0.85);
       g.add(bulb);
       const halo = new THREE.Sprite(
         new THREE.SpriteMaterial({
@@ -1144,17 +1141,19 @@ export function mountGame(canvas: HTMLCanvasElement, hooks: GameHooks): GameHand
           transparent: true,
           depthWrite: false,
           blending: THREE.AdditiveBlending,
-          opacity: 0,
+          opacity: hue === "clear" ? 0.9 : 0,
+          toneMapped: false,
         }),
       );
       halo.position.copy(bulb.position);
-      halo.scale.set(2.6, 2.6, 1);
-      halo.visible = false;
+      halo.scale.set(14, 14, 1);
+      halo.visible = hue === "clear";
       g.add(halo);
       halos.push(halo);
     });
-    const light = new THREE.PointLight(0x9dbe8a, 0, 48, 2);
-    light.position.set(0, 5.4, -0.8);
+    mats[0].color.setHex(colors[0]);
+    const light = new THREE.PointLight(colors[0], 30, 80, 2);
+    light.position.set(0, 6.2, -1.4);
     g.add(light);
     sigLamps.push({ d: sig.d, meet: sig.meet, mats, hues, halos, light });
     scene.add(g);
@@ -1947,19 +1946,24 @@ export function mountGame(canvas: HTMLCanvasElement, hooks: GameHooks): GameHand
       desired.set(s.x + Math.sin(sim.menuAng) * 28, s.y + 8.2, s.z + Math.cos(sim.menuAng) * 24);
       look.set(s.x, s.y + 2.2, s.z + 14);
     } else if (sim.camera === "cab") {
-      desired = new THREE.Vector3(0.46, 3.35, 2.05).applyQuaternion(lead.group.quaternion).add(lead.group.position);
-      look = new THREE.Vector3(0.1, 3.05, 40).applyQuaternion(lead.group.quaternion).add(lead.group.position);
+      desired = new THREE.Vector3(0.46, 3.35, -2.05).applyQuaternion(lead.group.quaternion).add(lead.group.position);
+      look = new THREE.Vector3(0.1, 3.05, -40).applyQuaternion(lead.group.quaternion).add(lead.group.position);
     } else if (sim.camera === "hood") {
-      desired = new THREE.Vector3(0, 4.15, 8.2).applyQuaternion(lead.group.quaternion).add(lead.group.position);
-      look = new THREE.Vector3(0, 2.4, 50).applyQuaternion(lead.group.quaternion).add(lead.group.position);
+      desired = new THREE.Vector3(0, 4.15, -8.2).applyQuaternion(lead.group.quaternion).add(lead.group.position);
+      look = new THREE.Vector3(0, 2.4, -50).applyQuaternion(lead.group.quaternion).add(lead.group.position);
     } else if (sim.camera === "railfan") {
       const s = sampleAt(Math.min(ROUTE_LEN - 2, sim.d + 46));
       desired.set(s.x + s.rx * 16, s.y + 3.4, s.z + s.rz * 16);
       look.copy(lead.group.position).add(new THREE.Vector3(0, 2, 0));
     } else {
+      const aheadS = sampleAt(Math.min(ROUTE_LEN - 2, sim.d + 24));
+      const travel = new THREE.Vector3(aheadS.x - lead.group.position.x, 0, aheadS.z - lead.group.position.z);
+      if (travel.lengthSq() < 1e-4) travel.set(0, 0, 1);
+      travel.normalize();
+      travel.applyAxisAngle(new THREE.Vector3(0, 1, 0), sim.lookYaw);
       const shake = Math.min(0.12, Math.abs(sim.speed) * 0.004) * Math.sin(sim.d * 0.85);
-      desired.copy(lead.group.position).addScaledVector(fwd, -20).add(new THREE.Vector3(0, 6.4 + shake, 0));
-      look.copy(lead.group.position).addScaledVector(fwd, 10).add(new THREE.Vector3(0, 2.4, 0));
+      desired.copy(lead.group.position).addScaledVector(travel, -22).add(new THREE.Vector3(0, 6.6 + shake, 0));
+      look.copy(lead.group.position).addScaledVector(travel, 70).add(new THREE.Vector3(0, 3.4, 0));
     }
     aimCamera(desired, look, sim.running && (sim.camera === "cab" || sim.camera === "hood"));
     const k = sim.snap ? 1 : 1 - Math.exp(-3.1 * dt);
@@ -2001,14 +2005,18 @@ export function mountGame(canvas: HTMLCanvasElement, hooks: GameHooks): GameHand
         const red = SIGNALS.find((s) => s.meet && s.d > sig.d && sim.job.meet && !sim.meetCleared);
         if (red && red.d - sig.d < 1500) show = "approach";
       }
+      const colors = [0x3dff6a, 0xffc83a, 0xff3b30];
       sig.mats.forEach((mat, i) => {
         const on = sig.hues[i] === show;
-        mat.emissiveIntensity = on ? 5 : 0.04;
+        mat.color.setHex(on ? colors[i] : 0x1a1c1b);
         sig.halos[i].visible = on;
+        const dist = Math.max(40, Math.abs(sig.d - sim.d));
+        const scale = Math.min(36, Math.max(14, dist * 0.045));
+        sig.halos[i].scale.set(scale, scale, 1);
         (sig.halos[i].material as THREE.SpriteMaterial).opacity = on ? 0.95 : 0;
       });
-      sig.light.color.setHex(show === "stop" ? 0xff5a42 : show === "approach" ? 0xe0a04a : 0x9dbe8a);
-      sig.light.intensity = show === "stop" ? 26 : 16;
+      sig.light.color.setHex(show === "stop" ? 0xff3b30 : show === "approach" ? 0xffc83a : 0x3dff6a);
+      sig.light.intensity = 40;
     }
   }
 
