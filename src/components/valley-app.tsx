@@ -65,6 +65,7 @@ const emptyHud = (): Hud => ({
   radio: "Calling the yard…",
   warning: "",
   job: "",
+  switchMain: false,
 });
 
 function money(n: number) {
@@ -402,6 +403,14 @@ function CabStand({
       <div className="cab-grid">
         <div className="cab-left">
           <Hold label="HORN" name="horn" gameRef={gameRef} className="cab-horn" />
+          <button
+            type="button"
+            className={`flex h-16 min-w-16 flex-col items-center justify-center border border-line bg-panel px-1 text-xs tracking-wide uppercase ${hud.switchMain ? "text-clear" : "text-signal"}`}
+            onClick={() => game()?.lineSwitch()}
+          >
+            Line
+            <span className="text-[0.65rem] tracking-widest">{hud.switchMain ? "Main" : "Yard"}</span>
+          </button>
         </div>
         <div className="cab-power">
           <div className="cab-notch">
@@ -586,7 +595,7 @@ export function ValleyApp() {
                 <Stat k="Par" v={`${Math.round(job.par / 60)} min`} />
               </dl>
               <p className="mt-3 text-xs leading-relaxed tracking-wide text-steel uppercase">
-                Phone: drag the view to look around, pinch to zoom. Right thumb is power and air, left thumb blows the horn.
+                Phone: drag to look, pinch to zoom. Line throws the yard switch. Right thumb is power and air, left thumb is the horn.
                 Keyboard: W raises the throttle 1–8. S eases it, and past idle S is the dynamic brake. Space is the air brake.
               </p>
               {job.qual && !career.quals[job.qual] ? (

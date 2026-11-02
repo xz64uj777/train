@@ -47,6 +47,7 @@ export type Hud = {
   radio: string;
   warning: string;
   job: string;
+  switchMain: boolean;
 };
 
 export type GameHooks = {
@@ -64,6 +65,7 @@ export type GameHandle = {
   toggleLights: () => void;
   toggleMute: () => void;
   emergency: () => void;
+  lineSwitch: () => void;
   unlock: () => void;
 };
 
@@ -462,7 +464,7 @@ export function mountGame(canvas: HTMLCanvasElement, hooks: GameHooks): GameHand
     roughness: 0.98,
     metalness: 0.02,
   });
-  const railMat = new THREE.MeshStandardMaterial({ color: 0x8d9498, metalness: 0.86, roughness: 0.34 });
+  const railMat = new THREE.MeshStandardMaterial({ color: 0x6e767c, metalness: 0.92, roughness: 0.28 });
   const tieMat = new THREE.MeshStandardMaterial({ color: 0x5c4636, roughness: 0.92 });
   const waterMat = new THREE.MeshStandardMaterial({
     map: waterMap,
@@ -472,7 +474,38 @@ export function mountGame(canvas: HTMLCanvasElement, hooks: GameHooks): GameHand
     transparent: true,
     opacity: 0.94,
   });
-  const paint = new THREE.MeshStandardMaterial({ color: 0x1c4032, roughness: 0.48, metalness: 0.14 });
+  const paint = new THREE.MeshStandardMaterial({ color: 0x1c4032, roughness: 0.62, metalness: 0.08 });
+  const grit = (() => {
+    const c = document.createElement("canvas");
+    c.width = 128;
+    c.height = 128;
+    const g = c.getContext("2d");
+    if (g) {
+      const img = g.createImageData(128, 128);
+      for (let i = 0; i < 128 * 128; i++) {
+        const n = 168 + Math.random() * 87;
+        img.data[i * 4] = n;
+        img.data[i * 4 + 1] = n;
+        img.data[i * 4 + 2] = n - 6;
+        img.data[i * 4 + 3] = 255;
+      }
+      g.putImageData(img, 0, 0);
+      g.strokeStyle = "rgba(30,26,20,0.22)";
+      g.lineWidth = 2;
+      for (let i = 0; i < 7; i++) {
+        g.beginPath();
+        g.moveTo(0, Math.random() * 128);
+        g.lineTo(128, Math.random() * 128);
+        g.stroke();
+      }
+    }
+    const t = new THREE.CanvasTexture(c);
+    t.wrapS = t.wrapT = THREE.RepeatWrapping;
+    t.colorSpace = THREE.SRGBColorSpace;
+    t.repeat.set(2.5, 2.5);
+    return t;
+  })();
+  paint.map = grit;
   const cream = new THREE.MeshStandardMaterial({ color: 0xe6e0d2, roughness: 0.52, metalness: 0.04 });
   const black = new THREE.MeshStandardMaterial({ color: 0x17191b, roughness: 0.64, metalness: 0.22 });
   const steel = new THREE.MeshStandardMaterial({ color: 0xa0a8ac, roughness: 0.32, metalness: 0.8 });
@@ -639,13 +672,68 @@ export function mountGame(canvas: HTMLCanvasElement, hooks: GameHooks): GameHand
     return mesh;
   }
 
+  function buildRail(offset: number, d0 = 0, d1 = ROUTE_LEN) {
+    const pts = SAMPLES.filter((s, i) => i % 2 === 0 && s.d >= d0 && s.d <= d1);
+    const positions: number[] = [];
+    const indices: number[] = [];
+    pts.forEach((p, i) => {
+      const x = p.x + p.rx * offset;
+      const z = p.z + p.rz * offset;
+      const hx = p.rx * 0.04;
+      const hz = p.rz * 0.04;
+      const y0 = p.y - 0.02;
+      const y1 = p.y + 0.18;
+      positions.push(x - hx, y0, z - hz, x + hx, y0, z + hz, x - hx, y1, z - hz, x + hx, y1, z + hz);
+      if (i > 0) {
+        const a = (i - 1) * 4;
+        const b = i * 4;
+        indices.push(a, b, a + 2, b, b + 2, a + 2);
+        indices.push(a + 1, a + 3, b + 1, a + 3, b + 3, b + 1);
+        indices.push(a + 2, b + 2, a + 3, b + 2, b + 3, a + 3);
+      }
+    });
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+    geo.setIndex(indices);
+    geo.computeVertexNormals();
+    const mesh = new THREE.Mesh(geo, railMat);
+    scene.add(mesh);
+  }
+
   buildStrip(0, -0.34, 2.7, ballastMat);
-  buildStrip(0.74, 0.02, 0.045, railMat);
-  buildStrip(-0.74, 0.02, 0.045, railMat);
-  // yard leads
+  buildRail(0.74);
+  buildRail(-0.74);
   buildStrip(4.6, -0.34, 1.5, ballastMat, 0, MARK.yardEnd + 80);
-  buildStrip(4.6 + 0.74, 0.02, 0.04, railMat, 0, MARK.yardEnd + 40);
-  buildStrip(4.6 - 0.74, 0.02, 0.04, railMat, 0, MARK.yardEnd + 40);
+  buildRail(4.6 + 0.74, 0, MARK.yardEnd + 40);
+  buildRail(4.6 - 0.74, 0, MARK.yardEnd + 40);
+  {
+    const a = sampleAt(Math.max(0, dAtZSafe(500) - 22));
+    const b = sampleAt(dAtZSafe(500) + 12);
+    const positions: number[] = [];
+    const indices: number[] = [];
+    for (let i = 0; i <= 10; i++) {
+      const t = i / 10;
+      const s =  t * t * (3 - 2 * t);
+      const p = sampleAt(a.d + (b.d - a.d) * t);
+      const off = 4.6 * (1 - s);
+      for (const gauge of [0.74, -0.74]) {
+        const o = off + gauge;
+        positions.push(p.x + p.rx * o, p.y + 0.16, p.z + p.rz * o);
+      }
+    }
+    for (let i = 0; i < 10; i++) {
+      const L = i * 2;
+      const R = L + 1;
+      const Ln = L + 2;
+      const Rn = L + 3;
+      indices.push(L, Ln, R, R, Ln, Rn);
+    }
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+    geo.setIndex(indices);
+    geo.computeVertexNormals();
+    scene.add(new THREE.Mesh(geo, railMat));
+  }
 
   {
     const tieGeo = new THREE.BoxGeometry(2.55, 0.16, 0.22);
@@ -661,6 +749,45 @@ export function mountGame(canvas: HTMLCanvasElement, hooks: GameHooks): GameHand
       ties.setMatrixAt(i, dummy.matrix);
     }
     scene.add(ties);
+  }
+
+  const switchMat = new THREE.MeshStandardMaterial({
+    color: 0xc4553a,
+    emissive: 0xc4553a,
+    emissiveIntensity: 0.8,
+    roughness: 0.4,
+  });
+  {
+    const dock = sampleAt(MARK.yardSpot);
+    const platform = new THREE.Mesh(new THREE.BoxGeometry(3.4, 1.05, 22), concrete);
+    platform.position.set(dock.x + dock.rx * 8.4, dock.y + 0.52, dock.z + dock.rz * 8.4);
+    platform.rotation.y = dock.yaw;
+    platform.receiveShadow = true;
+    platform.castShadow = true;
+    const shed = new THREE.Mesh(new THREE.BoxGeometry(7, 4.2, 14), barn);
+    shed.position.set(dock.x + dock.rx * 13.5, dock.y + 2.1, dock.z + dock.rz * 13.5);
+    shed.rotation.y = dock.yaw;
+    shed.castShadow = true;
+    const roof = new THREE.Mesh(new THREE.BoxGeometry(8, 0.28, 15), roofMat);
+    roof.position.set(dock.x + dock.rx * 13.5, dock.y + 4.4, dock.z + dock.rz * 13.5);
+    roof.rotation.y = dock.yaw;
+    scene.add(platform, shed, roof);
+    const points = sampleAt(dAtZSafe(500));
+    const stand = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.1, 1.5, 6), black);
+    stand.position.set(points.x + points.rx * 2.3, points.y + 0.75, points.z + points.rz * 2.3);
+    const target = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.34, 0.08), switchMat);
+    target.position.set(points.x + points.rx * 2.3, points.y + 1.55, points.z + points.rz * 2.3);
+    target.rotation.y = points.yaw;
+    scene.add(stand, target);
+    const stored = sampleAt(dAtZSafe(200));
+    for (const extra of [-9, 8]) {
+      const at = sampleAt(stored.d + extra);
+      const body = new THREE.Mesh(new THREE.BoxGeometry(2.8, 2.5, 12), barn);
+      body.position.set(at.x, at.y + 1.7, at.z);
+      body.rotation.y = at.yaw;
+      body.castShadow = true;
+      scene.add(body);
+    }
   }
 
   // Water ribbon
@@ -1232,8 +1359,9 @@ export function mountGame(canvas: HTMLCanvasElement, hooks: GameHooks): GameHand
 
   const carColors = [0x6e342c, 0x8a6232, 0x2d4862, 0x4e453c, 0x6d4c34, 0x3d4c3e, 0x5c3a3a, 0x3a3f44];
   const carMats = carColors.map(
-    (hex) => new THREE.MeshStandardMaterial({ color: hex, roughness: 0.62, metalness: 0.08 }),
+    (hex) => new THREE.MeshStandardMaterial({ map: grit, color: hex, roughness: 0.72, metalness: 0.06 }),
   );
+  const coalMat = new THREE.MeshStandardMaterial({ color: 0x2a2724, roughness: 0.95 });
 
   function buildLoco(loco: Loco) {
     const group = new THREE.Group();
@@ -1278,6 +1406,24 @@ export function mountGame(canvas: HTMLCanvasElement, hooks: GameHooks): GameHand
       const truckZ = kind === "heavy" ? 5.6 : 5.05;
       putBox(blackG, 2.45, 0.4, kind === "heavy" ? 3.3 : 2.3, 0, 0.48, truckZ);
       putBox(blackG, 2.45, 0.4, kind === "heavy" ? 3.3 : 2.3, 0, 0.48, -truckZ);
+      const side = kind === "heavy" ? 2.6 : 2.2;
+      putBox(blackG, 0.16, 0.42, side, 1.15, 0.62, truckZ);
+      putBox(blackG, 0.16, 0.42, side, -1.15, 0.62, truckZ);
+      putBox(blackG, 0.16, 0.42, side, 1.15, 0.62, -truckZ);
+      putBox(blackG, 0.16, 0.42, side, -1.15, 0.62, -truckZ);
+      const fuel = new THREE.CylinderGeometry(0.52, 0.52, 2.2, 12);
+      fuel.rotateZ(Math.PI / 2);
+      fuel.translate(0, 0.95, 0.2);
+      blackG.push(fuel);
+      putBox(blackG, 2.8, 0.28, 0.45, 0, 0.72, L / 2 - 0.2);
+      putBox(blackG, 2.8, 0.28, 0.45, 0, 0.72, -L / 2 + 0.2);
+      putBox(blackG, 1.5, 0.9, 0.08, 0, 1.85, L * 0.38 + 1.85);
+      putBox(paintG, 3.25, 0.1, 3.15, 0, 3.62, L * 0.18);
+      putBox(blackG, 0.28, 0.85, 0.45, 1.5, 0.7, L * 0.18 + 1.15);
+      putBox(blackG, 0.28, 0.85, 0.45, -1.5, 0.7, L * 0.18 + 1.15);
+      const horn = new THREE.CylinderGeometry(0.05, 0.09, 0.32, 6);
+      horn.translate(0.35, 3.9, L * 0.18);
+      blackG.push(horn);
       const stack = new THREE.CylinderGeometry(0.22, 0.28, 0.45, 8);
       stack.translate(0, 3.05, -L * 0.28);
       paintG.push(stack);
@@ -1360,14 +1506,25 @@ export function mountGame(canvas: HTMLCanvasElement, hooks: GameHooks): GameHand
     const mat = kind === "passenger" ? silver : kind === "caboose" ? cabooseRed : carMats[index % carMats.length];
     const geos: THREE.BufferGeometry[] = [];
     if (kind === "tank") {
-      const tank = new THREE.CylinderGeometry(1.35, 1.35, length - 1.2, 14);
+      const tank = new THREE.CylinderGeometry(1.35, 1.35, length - 1.2, 16);
       tank.rotateX(Math.PI / 2);
       tank.translate(0, 2.15, 0);
       geos.push(tank);
+      const dome = new THREE.SphereGeometry(0.42, 10, 8);
+      dome.translate(0, 3.35, 0);
+      geos.push(dome);
       putBox(geos, 2.6, 0.35, length, 0, 1.05, 0);
+      putBox(geos, 0.7, 0.08, length - 2, 0, 3.5, 0);
     } else if (kind === "hopper") {
-      putBox(geos, 3.05, 1.7, length - 0.4, 0, 1.9, 0);
+      putBox(geos, 3.05, 0.35, length - 0.4, 0, 2.55, 0);
+      putBox(geos, 0.12, 1.3, length - 0.5, 1.45, 1.7, 0);
+      putBox(geos, 0.12, 1.3, length - 0.5, -1.45, 1.7, 0);
       putBox(geos, 2.4, 0.7, length - 0.8, 0, 1.05, 0);
+      const bay = new THREE.Mesh(new THREE.BoxGeometry(2.15, 0.9, length * 0.62), coalMat);
+      bay.position.set(0, 1.85, 0);
+      bay.castShadow = true;
+      group.add(bay);
+      group.userData.fill = bay;
     } else if (kind === "gondola") {
       putBox(geos, 3.0, 0.35, length - 0.3, 0, 1.15, 0);
       putBox(geos, 0.12, 1.15, length - 0.4, 1.45, 1.7, 0);
@@ -1385,9 +1542,14 @@ export function mountGame(canvas: HTMLCanvasElement, hooks: GameHooks): GameHand
       putBox(geos, 1.5, 0.9, 2.2, 0, 3.3, 0);
     } else {
       putBox(geos, 3.1, 2.7, length - 0.5, 0, 2.35, 0);
+      putBox(geos, 3.2, 0.16, length - 0.35, 0, 3.75, 0);
       const door = new THREE.BoxGeometry(0.06, 1.8, 1.6);
       door.translate(1.56, 1.9, 0);
       group.add(new THREE.Mesh(door, black));
+      const crate = new THREE.Mesh(new THREE.BoxGeometry(2.2, 1.3, length * 0.55), wood);
+      crate.position.set(0, 1.7, 0);
+      group.add(crate);
+      group.userData.fill = crate;
     }
     const body = new THREE.Mesh(merge(geos), mat);
     body.castShadow = index < 6;
@@ -1477,6 +1639,7 @@ export function mountGame(canvas: HTMLCanvasElement, hooks: GameHooks): GameHand
     red: 0,
     redFlag: false,
     meetCleared: false,
+    switchMain: false,
     stops: [] as StopState[],
     settled: false,
     camera: "chase" as CameraMode,
@@ -1521,11 +1684,26 @@ export function mountGame(canvas: HTMLCanvasElement, hooks: GameHooks): GameHand
     return s.limit;
   }
 
+  const SWITCH_D = dAtZSafe(500);
+
+  function lateral(d: number) {
+    if (!sim.switchMain) return 4.6;
+    const start = SWITCH_D - 22;
+    const end = SWITCH_D + 12;
+    if (d <= start) return 4.6;
+    if (d >= end) return 0;
+    const t = (d - start) / (end - start);
+    const s = t * t * (3 - 2 * t);
+    return 4.6 * (1 - s);
+  }
+
   function pose(group: THREE.Group, d: number) {
     const a = sampleAt(d);
     const b = sampleAt(Math.min(ROUTE_LEN - 1, d + 8));
-    group.position.set(a.x, a.y, a.z);
-    group.lookAt(b.x, b.y, b.z);
+    const offA = lateral(d);
+    const offB = lateral(Math.min(ROUTE_LEN - 1, d + 8));
+    group.position.set(a.x + a.rx * offA, a.y, a.z + a.rz * offA);
+    group.lookAt(b.x + b.rx * offB, b.y, b.z + b.rz * offB);
     group.rotateY(Math.PI);
     return a;
   }
@@ -1615,6 +1793,7 @@ export function mountGame(canvas: HTMLCanvasElement, hooks: GameHooks): GameHand
     sim.red = 0;
     sim.redFlag = false;
     sim.meetCleared = !job.meet;
+    sim.switchMain = false;
     sim.settled = false;
     sim.wasUp = false;
     sim.wasDown = false;
@@ -1688,6 +1867,16 @@ export function mountGame(canvas: HTMLCanvasElement, hooks: GameHooks): GameHand
   ) {
     const aheadMi = pending ? (pending.d - sim.d) / MILE : 0;
     if (asp.aspect === "stop") return `Red at ${asp.name}. Stop before the signal. Do not pass it.`;
+    if (sim.d < SWITCH_D + 20) {
+      const dock = sim.job.load ? sim.stops.find((st) => st.d < SWITCH_D && !st.done && !st.missed) : undefined;
+      if (dock) {
+        if (Math.abs(sim.d - dock.d) < 36 && Math.abs(sim.speed) < 0.7) {
+          return `Loading at the dock, ${Math.min(100, Math.round((dock.dwell / dock.hold) * 100))} percent. Hold the train.`;
+        }
+        return "You are on the yard track. Spot at the dock and load the cars.";
+      }
+      if (!sim.switchMain) return "Line the switch for the main, then pull out of the yard.";
+    }
     if (pending && aheadMi < -0.02) return `You passed ${pending.name} without a stop.`;
     if (asp.aspect === "approach") {
       const where = pending ? ` ${pending.name} is ${Math.max(0, aheadMi).toFixed(1)} mi ahead.` : "";
@@ -1734,6 +1923,7 @@ export function mountGame(canvas: HTMLCanvasElement, hooks: GameHooks): GameHand
       radio: sim.radio,
       warning: sim.warning,
       job: sim.job.symbol,
+      switchMain: sim.switchMain,
     };
     hooks.onHud(hud);
   }
@@ -1818,6 +2008,25 @@ export function mountGame(canvas: HTMLCanvasElement, hooks: GameHooks): GameHand
       sim.speed = 0;
       const term = sim.stops.find((st) => st.kind === "terminal");
       if (term && !term.done) finish(false);
+    }
+
+    const dock = sim.job.load ? sim.stops.find((st) => st.d < SWITCH_D && !st.done && !st.missed) : undefined;
+    if (dock && sim.d > SWITCH_D - 6) {
+      sim.d = SWITCH_D - 6;
+      sim.speed = 0;
+      if (sim.warning !== "LOAD THE CARS") {
+        sim.warning = "LOAD THE CARS";
+        say("The dock isn't finished. Spot and load before you leave the yard.");
+      }
+    } else if (!sim.switchMain && sim.d > SWITCH_D - 4) {
+      sim.d = SWITCH_D - 4;
+      sim.speed = 0;
+      if (sim.warning !== "SWITCH AGAINST YOU") {
+        sim.warning = "SWITCH AGAINST YOU";
+        say("That switch is lined for the yard.");
+      }
+    } else if (sim.warning === "SWITCH AGAINST YOU" || sim.warning === "LOAD THE CARS") {
+      sim.warning = "";
     }
 
     const mph = Math.abs(sim.speed) * 2.23694;
@@ -1938,6 +2147,17 @@ export function mountGame(canvas: HTMLCanvasElement, hooks: GameHooks): GameHand
       const slack = Math.sin(sim.time * 1.6 + i) * Math.min(0.12, Math.abs(sim.speed) * 0.01);
       pose(units[i].group, sim.d - units[i].offset - slack);
     }
+    let loaded = 1;
+    if (sim.job.load) {
+      const dock = sim.stops.find((st) => st.d < SWITCH_D);
+      loaded = !dock || dock.done ? 1 : Math.min(1, dock.dwell / Math.max(0.2, dock.hold));
+    }
+    for (const u of units) {
+      const fill = u.group.userData.fill as THREE.Object3D | undefined;
+      if (fill) fill.scale.y = 0.05 + loaded * 0.95;
+    }
+    switchMat.color.setHex(sim.switchMain ? 0x7ea37a : 0xc4553a);
+    switchMat.emissive.setHex(sim.switchMain ? 0x7ea37a : 0xc4553a);
     sim.wheelSpin += (sim.speed / 0.46) * dt;
     for (const u of units) for (const w of u.wheels) w.rotation.x = sim.wheelSpin;
 
@@ -2235,6 +2455,12 @@ export function mountGame(canvas: HTMLCanvasElement, hooks: GameHooks): GameHand
     toggleLights,
     toggleMute,
     emergency: triggerEmergency,
+    lineSwitch() {
+      if (sim.d > SWITCH_D + 40) return;
+      sim.switchMain = !sim.switchMain;
+      say(sim.switchMain ? "Switch lined for the main." : "Switch lined back for the yard.");
+      pushHud();
+    },
     unlock() {
       audio.unlock();
     },

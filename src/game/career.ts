@@ -32,6 +32,8 @@ export type Job = {
   qual: QualId | null;
   meet: boolean;
   fast: boolean;
+  /** Spot and load on the yard track before the switch will let you out. */
+  load: boolean;
   stops: StopDef[];
   maxD: number;
 };
@@ -59,13 +61,13 @@ export const QUALS: Record<QualId, { title: string; cost: number; rep: number; d
     title: "Mountain grade",
     cost: 2800,
     rep: 60,
-    detail: "Air, dynamic brake, and the 1.5% into Hale. Unlocks Summit Stone.",
+    detail: "Air, dynamic brake, and the 1.5% into Hale. Unlocks Summit Stone and the grain drag.",
   },
   passenger: {
     title: "Passenger rules",
     cost: 4600,
     rep: 70,
-    detail: "Station stops, higher speed, and the evening extra to Tidewater.",
+    detail: "Station stops, higher speed, the evening extra, and the night mail.",
   },
 };
 
@@ -74,7 +76,7 @@ export const JOBS: Job[] = [
     id: "yard",
     name: "First trick hostling",
     symbol: "YD-1",
-    blurb: "A light cut, two spots in the yard, and a gentle hand on the air. Learn the brake before the river.",
+    blurb: "You start on the yard track beside the dock. Load the cars, line the switch for the main, and pull to the departure lead.",
     loco: "sw1500",
     tons: 280,
     cars: [
@@ -89,8 +91,9 @@ export const JOBS: Job[] = [
     qual: null,
     meet: false,
     fast: false,
+    load: true,
     stops: [
-      { d: MARK.yardSpot, name: "Rip track", hold: 5, kind: "station" },
+      { d: MARK.yardSpot, name: "Dock", hold: 8, kind: "station" },
       { d: MARK.yardEnd, name: "Departure lead", hold: 5, kind: "terminal" },
     ],
     maxD: MARK.yardEnd + 380,
@@ -115,6 +118,7 @@ export const JOBS: Job[] = [
     qual: null,
     meet: true,
     fast: false,
+    load: false,
     stops: [
       { d: MARK.mill, name: "Mill River", hold: 7, kind: "station" },
       { d: MARK.ferryStop, name: "East Ferry meet", hold: 9, kind: "meet" },
@@ -138,6 +142,7 @@ export const JOBS: Job[] = [
     qual: "mountain",
     meet: true,
     fast: false,
+    load: false,
     stops: [
       { d: MARK.ferryStop, name: "East Ferry meet", hold: 9, kind: "meet" },
       { d: MARK.hale, name: "Hale setout", hold: 8, kind: "station" },
@@ -160,6 +165,7 @@ export const JOBS: Job[] = [
     qual: "passenger",
     meet: false,
     fast: true,
+    load: false,
     stops: [
       { d: MARK.mill, name: "Mill River", hold: 10, kind: "station" },
       { d: MARK.hale, name: "Hale's Landing", hold: 10, kind: "station" },
