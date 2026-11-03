@@ -1,4 +1,4 @@
-import { MARK, MILE, ROUTE_LEN } from "./route";
+import { MARK, MILE, ROUTE_LEN, dAtZ } from "./route";
 
 export type TimeOfDay = "dawn" | "afternoon" | "dusk";
 export type CarKind = "box" | "hopper" | "tank" | "gondola" | "passenger" | "caboose";
@@ -99,6 +99,53 @@ export const JOBS: Job[] = [
     maxD: MARK.yardEnd + 380,
   },
   {
+    id: "mill",
+    name: "Mill River turn",
+    symbol: "CV-4",
+    blurb: "A short merchandise turn. Blow for every crossing, ease through the work gang, and tie up at Mill River.",
+    loco: "gp38",
+    tons: 540,
+    cars: [
+      { kind: "box", n: 3 },
+      { kind: "tank", n: 1 },
+    ],
+    caboose: true,
+    pay: 520,
+    par: 280,
+    time: "afternoon",
+    qual: null,
+    meet: false,
+    fast: false,
+    load: false,
+    stops: [{ d: MARK.mill, name: "Mill River", hold: 7, kind: "terminal" }],
+    maxD: MARK.mill + 220,
+  },
+  {
+    id: "section",
+    name: "Section work",
+    symbol: "WK-2",
+    blurb: "Men on the ground past the yard. Twelve miles an hour through the flags, stop for the gang, and horn the crossings.",
+    loco: "gp38",
+    tons: 360,
+    cars: [
+      { kind: "gondola", n: 2 },
+      { kind: "box", n: 1 },
+    ],
+    caboose: true,
+    pay: 610,
+    par: 340,
+    time: "dawn",
+    qual: null,
+    meet: false,
+    fast: false,
+    load: false,
+    stops: [
+      { d: dAtZ(1360), name: "Work gang", hold: 8, kind: "station" },
+      { d: MARK.mill, name: "Mill River", hold: 6, kind: "terminal" },
+    ],
+    maxD: MARK.mill + 220,
+  },
+  {
     id: "local",
     name: "River Local",
     symbol: "CV-2",
@@ -128,6 +175,55 @@ export const JOBS: Job[] = [
     maxD: ROUTE_LEN,
   },
   {
+    id: "ferry",
+    name: "East Ferry turn",
+    symbol: "CV-6",
+    blurb: "As far as the meet. Mill River, then hold for the westbound at East Ferry and tie up there. Do not take the mountain.",
+    loco: "gp38",
+    tons: 780,
+    cars: [
+      { kind: "box", n: 2 },
+      { kind: "hopper", n: 2 },
+      { kind: "gondola", n: 1 },
+    ],
+    caboose: true,
+    pay: 740,
+    par: 420,
+    time: "afternoon",
+    qual: null,
+    meet: true,
+    fast: false,
+    load: false,
+    stops: [
+      { d: MARK.mill, name: "Mill River", hold: 6, kind: "station" },
+      { d: MARK.ferryStop, name: "East Ferry meet", hold: 9, kind: "meet" },
+      { d: MARK.ferryStop + 80, name: "East Ferry", hold: 5, kind: "terminal" },
+    ],
+    maxD: MARK.ferryStop + 420,
+  },
+  {
+    id: "empties",
+    name: "Tidewater empties",
+    symbol: "EM-1",
+    blurb: "Light hoppers. The drop off Hale will run away from you. Dynamic brake down the hill, horn the crossings, twenty through the Tidewater curve.",
+    loco: "gp38",
+    tons: 480,
+    cars: [{ kind: "hopper", n: 8 }],
+    caboose: true,
+    pay: 1040,
+    par: 640,
+    time: "afternoon",
+    qual: null,
+    meet: false,
+    fast: false,
+    load: false,
+    stops: [
+      { d: MARK.hale, name: "Hale's Landing", hold: 6, kind: "station" },
+      { d: MARK.tide, name: "Tidewater", hold: 6, kind: "terminal" },
+    ],
+    maxD: ROUTE_LEN,
+  },
+  {
     id: "stone",
     name: "Summit Stone",
     symbol: "ST-9",
@@ -145,6 +241,29 @@ export const JOBS: Job[] = [
     load: false,
     stops: [
       { d: MARK.ferryStop, name: "East Ferry meet", hold: 9, kind: "meet" },
+      { d: MARK.hale, name: "Hale setout", hold: 8, kind: "station" },
+      { d: MARK.tide, name: "Tidewater dock", hold: 6, kind: "terminal" },
+    ],
+    maxD: ROUTE_LEN,
+  },
+  {
+    id: "grain",
+    name: "Hale grain drag",
+    symbol: "GR-5",
+    blurb: "Heavier than the stone train. If you are still in the dynamic when the grade starts, it will stall you on the 1.5%.",
+    loco: "sd40",
+    tons: 3400,
+    cars: [{ kind: "hopper", n: 18 }],
+    caboose: true,
+    pay: 1900,
+    par: 920,
+    time: "dawn",
+    qual: "mountain",
+    meet: true,
+    fast: false,
+    load: false,
+    stops: [
+      { d: MARK.ferryStop, name: "East Ferry meet", hold: 8, kind: "meet" },
       { d: MARK.hale, name: "Hale setout", hold: 8, kind: "station" },
       { d: MARK.tide, name: "Tidewater dock", hold: 6, kind: "terminal" },
     ],
@@ -170,6 +289,29 @@ export const JOBS: Job[] = [
       { d: MARK.mill, name: "Mill River", hold: 10, kind: "station" },
       { d: MARK.hale, name: "Hale's Landing", hold: 10, kind: "station" },
       { d: MARK.tide, name: "Tidewater", hold: 8, kind: "terminal" },
+    ],
+    maxD: ROUTE_LEN,
+  },
+  {
+    id: "mail",
+    name: "Night mail",
+    symbol: "MX-8",
+    blurb: "Dusk, three cars, and a slot to keep. Horn the crossings. The platforms want a stop, not a crawl.",
+    loco: "f40",
+    tons: 320,
+    cars: [{ kind: "passenger", n: 3 }],
+    caboose: false,
+    pay: 1360,
+    par: 430,
+    time: "dusk",
+    qual: "passenger",
+    meet: false,
+    fast: true,
+    load: false,
+    stops: [
+      { d: MARK.mill, name: "Mill River", hold: 8, kind: "station" },
+      { d: MARK.hale, name: "Hale's Landing", hold: 8, kind: "station" },
+      { d: MARK.tide, name: "Tidewater", hold: 6, kind: "terminal" },
     ],
     maxD: ROUTE_LEN,
   },
@@ -281,6 +423,8 @@ export type RunResult = {
   smoothStops: number;
   red: number;
   emergencyCount: number;
+  hornMiss: number;
+  slowFail: number;
 };
 
 export type PayLine = { label: string; amount: number };
@@ -303,7 +447,7 @@ export function settle(c: Career, run: RunResult): { career: Career; report: Rep
   const lines: PayLine[] = [];
   let pay = run.completed ? job.pay : 40;
   lines.push({ label: run.completed ? "Trip rate" : "Called off the board", amount: run.completed ? job.pay : 40 });
-  const onTime = run.completed && run.seconds <= job.par && run.missed === 0 && run.red === 0;
+  const onTime = run.completed && run.seconds <= job.par && run.missed === 0 && run.red === 0 && run.hornMiss === 0 && run.slowFail === 0;
   if (onTime) {
     const bonus = Math.round(job.pay * 0.16);
     pay += bonus;
@@ -341,6 +485,16 @@ export function settle(c: Career, run: RunResult): { career: Career; report: Rep
     pay -= hit;
     lines.push({ label: "Emergency application", amount: -hit });
   }
+  if (run.hornMiss) {
+    const hit = run.hornMiss * 80;
+    pay -= hit;
+    lines.push({ label: "Quiet crossing", amount: -hit });
+  }
+  if (run.slowFail) {
+    const hit = run.slowFail * 120;
+    pay -= hit;
+    lines.push({ label: "Slow order", amount: -hit });
+  }
   if (!run.completed) pay = Math.min(pay, 40);
   pay = Math.max(0, Math.round(pay));
 
@@ -348,6 +502,8 @@ export function settle(c: Career, run: RunResult): { career: Career; report: Rep
   if (run.completed && run.red === 0 && run.missed === 0 && run.overSeconds < 6) rep += 2;
   rep -= run.red * 9;
   rep -= run.missed * 3;
+  rep -= run.hornMiss;
+  if (run.slowFail) rep -= 2;
   if (run.overSeconds > 10) rep -= 2;
   if (run.rough) rep -= 1;
   rep = Math.max(0, Math.min(100, rep));
@@ -376,7 +532,7 @@ export function settle(c: Career, run: RunResult): { career: Career; report: Rep
   saveCareer(next);
 
   let grade = "C";
-  if (run.completed && run.red === 0 && run.missed === 0 && run.rough === 0 && onTime) grade = "A";
+  if (run.completed && run.red === 0 && run.missed === 0 && run.rough === 0 && run.hornMiss === 0 && run.slowFail === 0 && onTime) grade = "A";
   else if (run.completed && run.red === 0 && run.missed === 0) grade = "B";
   else if (!run.completed || run.red > 0) grade = "D";
 

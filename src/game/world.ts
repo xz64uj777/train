@@ -69,6 +69,18 @@ export type GameHandle = {
   unlock: () => void;
 };
 
+type TrackEvent = {
+  d: number;
+  kind: "horn" | "slow";
+  name: string;
+  len: number;
+  limit: number;
+  done: boolean;
+  failed: boolean;
+  told: boolean;
+  over: number;
+};
+
 type StopState = {
   d: number;
   name: string;
@@ -397,8 +409,35 @@ function putBox(list: THREE.BufferGeometry[], w: number, h: number, d: number, x
   list.push(g);
 }
 
+function hood(list: THREE.BufferGeometry[], length: number, width: number, wall: number, roof: number, x: number, y: number, z: number) {
+  const s = new THREE.Shape();
+  const w = width / 2;
+  s.moveTo(-w, 0);
+  s.lineTo(w, 0);
+  s.lineTo(w, wall);
+  s.lineTo(w * 0.55, wall + roof);
+  s.lineTo(-w * 0.55, wall + roof);
+  s.lineTo(-w, wall);
+  s.closePath();
+  const g = new THREE.ExtrudeGeometry(s, { depth: length, bevelEnabled: false, curveSegments: 1 });
+  g.translate(x, y, z - length / 2);
+  list.push(g);
+}
+
 function merge(list: THREE.BufferGeometry[]) {
-  const g = mergeGeometries(list, false);
+  const packed = list.map((g) => {
+    const n = g.index ? g.toNonIndexed() : g;
+    for (const name of Object.keys(n.attributes)) {
+      if (name !== "position" && name !== "normal" && name !== "uv") n.deleteAttribute(name);
+    }
+    if (!n.getAttribute("normal")) n.computeVertexNormals();
+    if (!n.getAttribute("uv")) {
+      const count = n.getAttribute("position").count;
+      n.setAttribute("uv", new THREE.BufferAttribute(new Float32Array(count * 2), 2));
+    }
+    return n;
+  });
+  const g = mergeGeometries(packed, false);
   if (!g) throw new Error("geometry merge failed");
   return g;
 }
@@ -507,6 +546,8 @@ export function mountGame(canvas: HTMLCanvasElement, hooks: GameHooks): GameHand
   })();
   paint.map = grit;
   const cream = new THREE.MeshStandardMaterial({ color: 0xe6e0d2, roughness: 0.52, metalness: 0.04 });
+  const safety = new THREE.MeshStandardMaterial({ color: 0xd7a441, roughness: 0.5, metalness: 0.08 });
+  const locoPaint = new THREE.MeshStandardMaterial({ color: 0x1a4634, roughness: 0.4, metalness: 0.22 });
   const black = new THREE.MeshStandardMaterial({ color: 0x17191b, roughness: 0.64, metalness: 0.22 });
   const steel = new THREE.MeshStandardMaterial({ color: 0xa0a8ac, roughness: 0.32, metalness: 0.8 });
   const glass = new THREE.MeshStandardMaterial({
@@ -1306,13 +1347,24 @@ export function mountGame(canvas: HTMLCanvasElement, hooks: GameHooks): GameHand
     scene.add(spr);
   }
 
-  const wheelGeo = new THREE.CylinderGeometry(0.46, 0.46, 0.22, 12);
+  const wheelGeo = new THREE.CylinderGeometry(0.46, 0.46, 0.18, 16);
   wheelGeo.rotateZ(Math.PI / 2);
   wheelGeo.userData.shared = true;
+  const flangeGeo = new THREE.CylinderGeometry(0.54, 0.54, 0.06, 16);
+  flangeGeo.rotateZ(Math.PI / 2);
+  flangeGeo.userData.shared = true;
+  const hubGeo = new THREE.CylinderGeometry(0.16, 0.16, 0.2, 8);
+  hubGeo.rotateZ(Math.PI / 2);
+  hubGeo.userData.shared = true;
 
   function makeWheel(x: number, z: number) {
     const m = new THREE.Mesh(wheelGeo, rubber);
-    m.position.set(x, 0.46, z);
+    const flange = new THREE.Mesh(flangeGeo, steel);
+    flange.userData.sharedGeo = true;
+    const hub = new THREE.Mesh(hubGeo, steel);
+    hub.userData.sharedGeo = true;
+    m.add(flange, hub);
+    m.position.set(x, 0.48, z);
     m.userData.sharedGeo = true;
     return m;
   }
@@ -1371,69 +1423,131 @@ export function mountGame(canvas: HTMLCanvasElement, hooks: GameHooks): GameHand
     const glassG: THREE.BufferGeometry[] = [];
     const kind = loco.kind;
     const L = loco.length;
+    const safetyG: THREE.BufferGeometry[] = [];
+    const rail = (z0: number, z1: number, x: number) => {
+      if (z1 - z0 < 0.5) return;
+      putBox(safetyG, 0.04, 0.04, z1 - z0, x, 1.78, (z0 + z1) / 2);
+      const posts = Math.max(2, Math.round((z1 - z0) / 1.35));
+      for (let i = 0; i <= posts; i++) {
+        const z = z0 + ((z1 - z0) * i) / posts;
+        putBox(safetyG, 0.035, 0.58, 0.035, x, 1.48, z);
+      }
+    };
+    let lampY = 2.05;
+    let lampZ = L / 2 - 0.2;
     if (kind === "switcher") {
-      putBox(blackG, 3, 0.4, L - 0.4, 0, 0.9, 0);
-      putBox(paintG, 2.4, 1.45, 4.2, 0, 1.95, 3.1);
-      putBox(paintG, 2.4, 1.45, 4.2, 0, 1.95, -3.1);
-      putBox(paintG, 3.05, 2.3, 3.1, 0, 2.35, 0);
-      putBox(creamG, 3.12, 0.12, 3.1, 0, 3.45, 0);
-      putBox(glassG, 2.7, 0.7, 0.08, 0, 2.7, 1.56);
-      putBox(glassG, 2.7, 0.7, 0.08, 0, 2.7, -1.56);
-      putBox(blackG, 2.4, 0.45, 2.2, 0, 0.48, 2.4);
-      putBox(blackG, 2.4, 0.45, 2.2, 0, 0.48, -2.4);
+      const deck = 1.12;
+      hood(paintG, 4.15, 2.25, 1.2, 0.34, 0, deck, 3.2);
+      hood(paintG, 4.15, 2.25, 1.2, 0.34, 0, deck, -3.2);
+      putBox(paintG, 3.12, 2.2, 3.15, 0, deck + 1.1, 0);
+      putBox(paintG, 3.35, 0.12, 3.45, 0, deck + 2.22, 0);
+      putBox(creamG, 3.18, 0.08, 3.15, 0, deck + 2.05, 0);
+      putBox(glassG, 2.45, 0.62, 0.06, 0, deck + 1.35, 1.6);
+      putBox(glassG, 2.45, 0.62, 0.06, 0, deck + 1.35, -1.6);
+      putBox(glassG, 0.06, 0.55, 2.15, 1.58, deck + 1.35, 0);
+      putBox(glassG, 0.06, 0.55, 2.15, -1.58, deck + 1.35, 0);
+      putBox(blackG, 3.1, 0.16, L - 0.35, 0, 0.98, 0);
+      putBox(blackG, 0.1, 0.45, L - 0.8, 1.2, 0.72, 0);
+      putBox(blackG, 0.1, 0.45, L - 0.8, -1.2, 0.72, 0);
+      putBox(blackG, 2.35, 0.32, 2.15, 0, 0.48, 2.45);
+      putBox(blackG, 2.35, 0.32, 2.15, 0, 0.48, -2.45);
+      putBox(blackG, 1.55, 0.75, 0.06, 0, deck + 0.7, 5.15);
+      putBox(blackG, 1.55, 0.75, 0.06, 0, deck + 0.7, -5.15);
+      putBox(blackG, 2.4, 0.28, 0.4, 0, 0.62, L / 2 - 0.25);
+      putBox(blackG, 2.4, 0.28, 0.4, 0, 0.62, -L / 2 + 0.25);
+      const stack = new THREE.CylinderGeometry(0.18, 0.24, 0.5, 8);
+      stack.translate(0, deck + 1.7, 2.4);
+      blackG.push(stack);
+      rail(-5.3, -1.7, 1.48);
+      rail(-5.3, -1.7, -1.48);
+      rail(1.7, 5.3, 1.48);
+      rail(1.7, 5.3, -1.48);
+      lampY = 1.85;
+      lampZ = L / 2 - 0.22;
     } else if (kind === "passenger") {
-      putBox(blackG, 3.05, 0.38, L - 0.3, 0, 0.9, 0);
-      putBox(paintG, 3.05, 2.55, L - 1.2, 0, 2.45, -0.2);
-      putBox(creamG, 3.12, 0.16, L - 1.3, 0, 1.55, -0.2);
-      putBox(glassG, 2.6, 0.62, 0.08, 0, 2.9, L / 2 - 0.7);
-      putBox(glassG, 0.08, 0.7, L * 0.62, 1.54, 2.85, 0);
-      putBox(glassG, 0.08, 0.7, L * 0.62, -1.54, 2.85, 0);
-      putBox(blackG, 2.5, 0.42, 2.3, 0, 0.5, 4.6);
-      putBox(blackG, 2.5, 0.42, 2.3, 0, 0.5, -4.6);
+      putBox(blackG, 3.05, 0.22, L - 0.3, 0, 1.05, 0);
+      putBox(paintG, 3.02, 2.45, L - 1.4, 0, 2.4, -0.15);
+      putBox(paintG, 3.2, 0.14, L - 1.1, 0, 3.68, -0.15);
+      putBox(creamG, 3.08, 0.1, L - 1.5, 0, 1.55, -0.15);
+      putBox(glassG, 2.4, 0.58, 0.06, 0, 2.95, L / 2 - 0.72);
+      for (const side of [1.53, -1.53]) {
+        for (let i = 0; i < 6; i++) {
+          putBox(glassG, 0.06, 0.62, 1.15, side, 2.9, -4.2 + i * 1.55);
+        }
+      }
+      putBox(blackG, 2.5, 0.36, 2.2, 0, 0.52, 4.8);
+      putBox(blackG, 2.5, 0.36, 2.2, 0, 0.52, -4.8);
+      putBox(blackG, 2.55, 0.7, 0.28, 0, 0.85, L / 2 - 0.2);
+      lampY = 2.35;
+      lampZ = L / 2 - 0.12;
     } else {
-      const long = kind === "heavy" ? 10.4 : 9.1;
-      putBox(blackG, 3.05, 0.42, L - 0.5, 0, 0.95, 0);
-      putBox(paintG, 2.35, 1.62, long, 0, 1.95, -L * 0.18);
-      putBox(paintG, 3.02, 2.25, 2.7, 0, 2.4, L * 0.18);
-      putBox(paintG, 2.2, 1.32, 4.1, 0, 1.85, L * 0.38);
-      putBox(creamG, 2.42, 0.1, long, 0, 2.55, -L * 0.18);
-      putBox(creamG, 3.08, 0.12, 2.7, 0, 3.5, L * 0.18);
-      putBox(glassG, 2.6, 0.72, 0.08, 0, 2.75, L * 0.18 + 1.36);
-      putBox(glassG, 0.08, 0.7, 2.2, 1.52, 2.75, L * 0.18);
-      putBox(glassG, 0.08, 0.7, 2.2, -1.52, 2.75, L * 0.18);
-      putBox(blackG, 2.2, 0.62, 3.4, 0, 0.72, -0.2);
-      putBox(blackG, 2.55, 0.7, 0.35, 0, 0.55, L / 2 - 0.3);
-      const truckZ = kind === "heavy" ? 5.6 : 5.05;
-      putBox(blackG, 2.45, 0.4, kind === "heavy" ? 3.3 : 2.3, 0, 0.48, truckZ);
-      putBox(blackG, 2.45, 0.4, kind === "heavy" ? 3.3 : 2.3, 0, 0.48, -truckZ);
-      const side = kind === "heavy" ? 2.6 : 2.2;
-      putBox(blackG, 0.16, 0.42, side, 1.15, 0.62, truckZ);
-      putBox(blackG, 0.16, 0.42, side, -1.15, 0.62, truckZ);
-      putBox(blackG, 0.16, 0.42, side, 1.15, 0.62, -truckZ);
-      putBox(blackG, 0.16, 0.42, side, -1.15, 0.62, -truckZ);
-      const fuel = new THREE.CylinderGeometry(0.52, 0.52, 2.2, 12);
+      const cabZ = L * 0.18;
+      const cabD = 2.85;
+      const cab0 = cabZ - cabD / 2;
+      const cab1 = cabZ + cabD / 2;
+      const deck = 1.16;
+      const long0 = -L / 2 + 0.65;
+      const longLen = cab0 - long0;
+      const short1 = L / 2 - 0.72;
+      const shortLen = short1 - cab1;
+      hood(paintG, longLen, 2.28, 1.42, 0.46, 0, deck, (long0 + cab0) / 2);
+      hood(paintG, shortLen, 2.02, 0.92, 0.26, 0, deck, (cab1 + short1) / 2);
+      putBox(paintG, 3.08, 2.05, cabD, 0, deck + 1.02, cabZ);
+      putBox(paintG, 3.32, 0.12, cabD + 0.28, 0, deck + 2.08, cabZ);
+      putBox(creamG, 2.34, 0.07, longLen * 0.92, 0, deck + 1.22, (long0 + cab0) / 2);
+      putBox(creamG, 3.12, 0.07, cabD, 0, deck + 1.95, cabZ);
+      putBox(glassG, 2.2, 0.58, 0.05, 0, deck + 1.28, cab1 + 0.02);
+      putBox(glassG, 0.05, 0.58, cabD * 0.7, 1.55, deck + 1.28, cabZ);
+      putBox(glassG, 0.05, 0.58, cabD * 0.7, -1.55, deck + 1.28, cabZ);
+      putBox(blackG, 0.22, 0.035, cabD * 0.78, 1.64, deck + 1.6, cabZ);
+      putBox(blackG, 0.22, 0.035, cabD * 0.78, -1.64, deck + 1.6, cabZ);
+      putBox(blackG, 3.2, 0.14, L - 0.25, 0, 1.02, 0);
+      putBox(blackG, 0.1, 0.5, L - 0.5, 1.22, 0.72, 0);
+      putBox(blackG, 0.1, 0.5, L - 0.5, -1.22, 0.72, 0);
+      const fuel = new THREE.CylinderGeometry(0.55, 0.55, kind === "heavy" ? 3.4 : 2.6, 16);
       fuel.rotateZ(Math.PI / 2);
-      fuel.translate(0, 0.95, 0.2);
+      fuel.translate(0, 0.78, -0.15);
       blackG.push(fuel);
-      putBox(blackG, 2.8, 0.28, 0.45, 0, 0.72, L / 2 - 0.2);
-      putBox(blackG, 2.8, 0.28, 0.45, 0, 0.72, -L / 2 + 0.2);
-      putBox(blackG, 1.5, 0.9, 0.08, 0, 1.85, L * 0.38 + 1.85);
-      putBox(paintG, 3.25, 0.1, 3.15, 0, 3.62, L * 0.18);
-      putBox(blackG, 0.28, 0.85, 0.45, 1.5, 0.7, L * 0.18 + 1.15);
-      putBox(blackG, 0.28, 0.85, 0.45, -1.5, 0.7, L * 0.18 + 1.15);
-      const horn = new THREE.CylinderGeometry(0.05, 0.09, 0.32, 6);
-      horn.translate(0.35, 3.9, L * 0.18);
+      const tz = kind === "heavy" ? 5.4 : 5.05;
+      const span = kind === "heavy" ? 2.5 : 1.55;
+      for (const z of [tz, -tz]) {
+        putBox(blackG, 0.2, 0.42, span, 1.08, 0.52, z);
+        putBox(blackG, 0.2, 0.42, span, -1.08, 0.52, z);
+        putBox(blackG, 1.7, 0.12, 0.55, 0, 0.92, z);
+      }
+      putBox(blackG, 2.55, 0.38, 0.5, 0, 0.64, L / 2 - 0.32);
+      putBox(blackG, 2.55, 0.38, 0.42, 0, 0.64, -L / 2 + 0.28);
+      putBox(blackG, 0.26, 0.18, 0.55, 0, 0.7, L / 2 - 0.02);
+      putBox(blackG, 0.26, 0.18, 0.55, 0, 0.7, -L / 2 + 0.02);
+      putBox(blackG, 1.6, 0.85, 0.06, 0, deck + 0.85, long0 + 0.15);
+      for (const fz of [long0 + longLen * 0.28, long0 + longLen * 0.48]) {
+        const fan = new THREE.CylinderGeometry(0.36, 0.4, 0.14, 10);
+        fan.translate(0, deck + 1.95, fz);
+        blackG.push(fan);
+      }
+      const stack = new THREE.CylinderGeometry(0.15, 0.22, 0.48, 8);
+      stack.translate(0, deck + 2.05, long0 + longLen * 0.62);
+      blackG.push(stack);
+      const horn = new THREE.CylinderGeometry(0.045, 0.08, 0.26, 6);
+      horn.rotateZ(0.4);
+      horn.translate(0.35, deck + 2.28, cabZ - 0.2);
       blackG.push(horn);
-      const stack = new THREE.CylinderGeometry(0.22, 0.28, 0.45, 8);
-      stack.translate(0, 3.05, -L * 0.28);
-      paintG.push(stack);
+      putBox(blackG, 0.28, 0.72, 0.36, 1.48, 0.55, cab1 + 0.15);
+      putBox(blackG, 0.28, 0.72, 0.36, -1.48, 0.55, cab1 + 0.15);
+      rail(long0, cab0 - 0.05, 1.52);
+      rail(long0, cab0 - 0.05, -1.52);
+      rail(cab1 + 0.08, short1, 1.48);
+      rail(cab1 + 0.08, short1, -1.48);
+      lampY = 1.72;
+      lampZ = short1 + 0.02;
     }
-    group.add(new THREE.Mesh(merge(paintG), paint));
+    group.add(new THREE.Mesh(merge(paintG), locoPaint));
     group.add(new THREE.Mesh(merge(blackG), black));
     if (creamG.length) group.add(new THREE.Mesh(merge(creamG), cream));
     if (glassG.length) group.add(new THREE.Mesh(merge(glassG), glass));
+    if (safetyG.length) group.add(new THREE.Mesh(merge(safetyG), safety));
     const board = new THREE.Mesh(new THREE.PlaneGeometry(0.9, 0.34), numberMat(loco.number));
-    board.position.set(1.55, 3.15, kind === "switcher" ? 0 : loco.length * 0.16);
+    board.position.set(1.58, kind === "switcher" ? 2.55 : kind === "passenger" ? 2.3 : 2.45, kind === "switcher" ? 0 : loco.length * 0.16);
     board.rotation.y = Math.PI / 2;
     group.add(board);
     const wheels: THREE.Object3D[] = [];
@@ -1451,8 +1565,8 @@ export function mountGame(canvas: HTMLCanvasElement, hooks: GameHooks): GameHand
       emissiveIntensity: 1.6,
     });
     lampEmissive.push(lampMat);
-    const lamp = new THREE.Mesh(new THREE.CircleGeometry(0.18, 12), lampMat);
-    lamp.position.set(0.55, kind === "passenger" ? 2.4 : 2.15, loco.length / 2 - 0.05);
+    const lamp = new THREE.Mesh(new THREE.CircleGeometry(0.16, 12), lampMat);
+    lamp.position.set(0.48, lampY, lampZ);
     group.add(lamp);
     const lamp2 = lamp.clone();
     lamp2.position.x = -0.55;
@@ -1470,8 +1584,8 @@ export function mountGame(canvas: HTMLCanvasElement, hooks: GameHooks): GameHand
     const hoodEye = new THREE.Vector3();
     const hoodGaze = new THREE.Vector3();
     if (kind === "switcher") {
-      eye.set(0.25, 3.15, 1.85);
-      gaze.set(0, 3.6, 75);
+      eye.set(0.2, 3.55, 2.35);
+      gaze.set(0, 2.8, 70);
       hoodEye.set(0, 3.8, 6.4);
       hoodGaze.set(0, 2.9, 70);
     } else if (kind === "passenger") {
@@ -1480,9 +1594,9 @@ export function mountGame(canvas: HTMLCanvasElement, hooks: GameHooks): GameHand
       hoodEye.set(0, 4.45, L / 2 + 0.35);
       hoodGaze.set(0, 3.2, L / 2 + 60);
     } else {
-      const z = L * 0.18 + 1.7;
-      eye.set(0.28, 3.6, z);
-      gaze.set(0, 4.3, z + 80);
+      const z = L * 0.18 + 2.55;
+      eye.set(0.15, 4.2, z);
+      gaze.set(0, 2.6, z + 70);
       hoodEye.set(0, 4.4, L * 0.42);
       hoodGaze.set(0, 3.2, L * 0.42 + 75);
     }
@@ -1640,6 +1754,9 @@ export function mountGame(canvas: HTMLCanvasElement, hooks: GameHooks): GameHand
     redFlag: false,
     meetCleared: false,
     switchMain: false,
+    hornMiss: 0,
+    slowFail: 0,
+    events: [] as TrackEvent[],
     stops: [] as StopState[],
     settled: false,
     camera: "chase" as CameraMode,
@@ -1680,8 +1797,12 @@ export function mountGame(canvas: HTMLCanvasElement, hooks: GameHooks): GameHand
   }
 
   function limitOf(s: Sample) {
-    if (sim.job.fast && s.d > dAtZSafe(900)) return Math.min(60, s.limit + 12);
-    return s.limit;
+    let lim = s.limit;
+    if (sim.job.fast && s.d > dAtZSafe(900)) lim = Math.min(60, lim + 12);
+    for (const ev of sim.events) {
+      if (ev.kind === "slow" && s.d >= ev.d && s.d <= ev.d + ev.len) lim = Math.min(lim, ev.limit);
+    }
+    return lim;
   }
 
   const SWITCH_D = dAtZSafe(500);
@@ -1695,6 +1816,29 @@ export function mountGame(canvas: HTMLCanvasElement, hooks: GameHooks): GameHand
     const t = (d - start) / (end - start);
     const s = t * t * (3 - 2 * t);
     return 4.6 * (1 - s);
+  }
+
+  function makeEvents(job: Job): TrackEvent[] {
+    const blank = (d: number, kind: "horn" | "slow", name: string, len = 0, limit = 0): TrackEvent => ({
+      d,
+      kind,
+      name,
+      len,
+      limit,
+      done: false,
+      failed: false,
+      told: false,
+      over: 0,
+    });
+    const all = [
+      blank(dAtZSafe(900), "horn", "the yard crossing"),
+      blank(dAtZSafe(1240), "slow", "the work gang", 380, 12),
+      blank(MARK.mill, "horn", "Mill River crossing"),
+      blank(dAtZSafe(1980), "horn", "the ferry road"),
+      blank(MARK.hale, "horn", "Hale crossing"),
+      blank(dAtZSafe(6400), "slow", "the Tidewater curve", 420, 20),
+    ];
+    return all.filter((e) => e.d > SWITCH_D && e.d < job.maxD - 40);
   }
 
   function pose(group: THREE.Group, d: number) {
@@ -1794,6 +1938,9 @@ export function mountGame(canvas: HTMLCanvasElement, hooks: GameHooks): GameHand
     sim.redFlag = false;
     sim.meetCleared = !job.meet;
     sim.switchMain = false;
+    sim.hornMiss = 0;
+    sim.slowFail = 0;
+    sim.events = makeEvents(job);
     sim.settled = false;
     sim.wasUp = false;
     sim.wasDown = false;
@@ -1837,6 +1984,8 @@ export function mountGame(canvas: HTMLCanvasElement, hooks: GameHooks): GameHand
       smoothStops: sim.stops.filter((s) => s.done && !s.rough && s.kind !== "terminal").length,
       red: sim.red,
       emergencyCount: sim.emergencies,
+      hornMiss: sim.hornMiss,
+      slowFail: sim.slowFail,
     };
     const { report } = settle(loadCareer(), result);
     hooks.onReport(report);
@@ -1877,6 +2026,11 @@ export function mountGame(canvas: HTMLCanvasElement, hooks: GameHooks): GameHand
       }
       if (!sim.switchMain) return "Line the switch for the main, then pull out of the yard.";
     }
+    const horn = sim.events.find((e) => e.kind === "horn" && !e.done && !e.failed && sim.d > e.d - 140 && sim.d < e.d + 16);
+    if (horn) return `Blow the horn for ${horn.name}.`;
+    const slow = sim.events.find((e) => e.kind === "slow" && !e.done && sim.d >= e.d - 100 && sim.d <= e.d + e.len);
+    if (slow && sim.d >= slow.d) return `Slow order. ${slow.limit} mph through ${slow.name}.`;
+    if (slow) return `${slow.name} ahead. ${slow.limit} mph until you are by.`;
     if (pending && aheadMi < -0.02) return `You passed ${pending.name} without a stop.`;
     if (asp.aspect === "approach") {
       const where = pending ? ` ${pending.name} is ${Math.max(0, aheadMi).toFixed(1)} mi ahead.` : "";
@@ -2079,6 +2233,34 @@ export function mountGame(canvas: HTMLCanvasElement, hooks: GameHooks): GameHand
     }
 
     if (!sim.settled && sim.job.maxD < ROUTE_LEN - 200 && sim.d > sim.job.maxD) finish(false);
+
+    for (const ev of sim.events) {
+      if (ev.kind === "horn") {
+        const near = sim.d > ev.d - 130 && sim.d < ev.d + 16;
+        if (near && !ev.told) {
+          ev.told = true;
+          say(`Whistle post. Blow for ${ev.name}.`);
+        }
+        if (near && h.horn) ev.done = true;
+        if (!ev.done && !ev.failed && sim.d > ev.d + 24) {
+          ev.failed = true;
+          sim.hornMiss += 1;
+          say(`Through ${ev.name} with no horn.`);
+        }
+      } else if (sim.d > ev.d - 160 && sim.d < ev.d && !ev.told) {
+        ev.told = true;
+        say(`${ev.name}. ${ev.limit} miles an hour until you are past the flags.`);
+      } else if (sim.d >= ev.d && sim.d <= ev.d + ev.len) {
+        if (mph > ev.limit + 3) {
+          ev.over += dt;
+          if (ev.over > 2.4 && !ev.failed) {
+            ev.failed = true;
+            sim.slowFail += 1;
+            say(`Over the slow order at ${ev.name}.`);
+          }
+        }
+      } else if (sim.d > ev.d + ev.len) ev.done = true;
+    }
 
     for (let i = 0; i < cues.length; i++) {
       const c = cues[i];
